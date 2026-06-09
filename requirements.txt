@@ -1,0 +1,20 @@
+# OpenSMILE Bridge Dependencies
+
+# Core
+numpy>=1.24.0
+websockets>=12.0
+
+# OpenSMILE voice feature extraction
+opensmile>=2.0.0
+
+# Audio processing
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# Fleet integration
+# (I2I uses filesystem-based protocol — no extra deps)
+
+# Development
+pytest>=7.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.0.0
