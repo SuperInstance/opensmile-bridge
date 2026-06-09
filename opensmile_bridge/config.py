@@ -38,6 +38,11 @@ MIDI_MAX: int = int(os.environ.get("OPENSMILE_BRIDGE_MIDI_MAX", "127"))
 # Logging
 LOG_LEVEL: str = os.environ.get("OPENSMILE_BRIDGE_LOG_LEVEL", "INFO")
 
+# Vessel agent configuration
+HEARTBEAT_INTERVAL: int = int(os.environ.get("OPENSMILE_BRIDGE_HEARTBEAT", "30"))
+PERSONA_TRACKING: bool = os.environ.get("OPENSMILE_BRIDGE_PERSONA", "false").lower() == "true"
+MIDI_ENABLED: bool = os.environ.get("OPENSMILE_BRIDGE_MIDI", "true").lower() == "true"
+
 # Feature mapping dictionary
 FEATURE_MAPPING: dict[str, str] = {
     'F0semitoneFrom27.5Hz_sma3nz': 'f0_semitones',
