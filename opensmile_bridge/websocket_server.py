@@ -56,7 +56,7 @@ class OpenSmileBridgeServer:
         self.audio_buffer: List[float] = []
         self.last_frame_time = time.time()
 
-    async def handle_connection(self, websocket: websockets.WebSocketServerProtocol, path: str):
+    async def handle_connection(self, websocket: websockets.WebSocketServerProtocol):
         """
         Handle incoming WebSocket connection
         """

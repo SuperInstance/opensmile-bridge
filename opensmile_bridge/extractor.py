@@ -197,6 +197,10 @@ class OpenSmileExtractor:
             result = self._batch_smile.process_signal(frame, SAMPLE_RATE)
             parsed = self._parse_features(result.to_dict())
             self.last_features = parsed
+            try:
+                self._feature_queue.put_nowait(parsed)
+            except queue.Full:
+                pass
             self.frame_count +=1
         except Exception as e:
             print(f"⚠️  OpenSMILE processing error: {e}")
