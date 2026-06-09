@@ -44,36 +44,39 @@ PERSONA_TRACKING: bool = os.environ.get("OPENSMILE_BRIDGE_PERSONA", "false").low
 MIDI_ENABLED: bool = os.environ.get("OPENSMILE_BRIDGE_MIDI", "true").lower() == "true"
 
 # Feature mapping dictionary
+# Maps actual OpenSMILE eGeMAPSv02 LLD column names to friendly keys
+# Verified against opensmile 2.6.6 — all 25 columns mapped
 FEATURE_MAPPING: dict[str, str] = {
-    'F0semitoneFrom27.5Hz_sma3nz': 'f0_semitones',
-    'F0raw_sma3nz': 'f0_raw',
     'Loudness_sma3': 'loudness',
-    'jitterLocal_sma3nz': 'jitter',
-    'shimmerLocaldB_sma3nz': 'shimmer',
-    'HNR_sma3nz': 'hnr',
     'alphaRatio_sma3': 'alpha_ratio',
     'hammarbergIndex_sma3': 'hammarberg_index',
-    'slope0-500Hz_sma3': 'slope_0_500',
-    'slope500-1500Hz_sma3': 'slope_500_1500',
+    'slope0-500_sma3': 'slope_0_500',
+    'slope500-1500_sma3': 'slope_500_1500',
     'spectralFlux_sma3': 'spectral_flux',
     'mfcc1_sma3': 'mfcc1',
     'mfcc2_sma3': 'mfcc2',
     'mfcc3_sma3': 'mfcc3',
     'mfcc4_sma3': 'mfcc4',
-    'mfcc5_sma3': 'mfcc5',
-    'mfcc6_sma3': 'mfcc6',
-    'mfcc7_sma3': 'mfcc7',
-    'mfcc8_sma3': 'mfcc8',
-    'mfcc9_sma3': 'mfcc9',
-    'mfcc10_sma3': 'mfcc10',
-    'mfcc11_sma3': 'mfcc11',
-    'mfcc12_sma3': 'mfcc12',
-    'voicingFinalUnclipped_sma3': 'voicing_probability',
+    'F0semitoneFrom27.5Hz_sma3nz': 'f0_semitones',
+    'jitterLocal_sma3nz': 'jitter',
+    'shimmerLocaldB_sma3nz': 'shimmer',
+    'HNRdBACF_sma3nz': 'hnr',
+    'logRelF0-H1-H2_sma3nz': 'log_rel_f0_h1_h2',
+    'logRelF0-H1-A3_sma3nz': 'log_rel_f0_h1_a3',
+    'F1frequency_sma3nz': 'f1_freq',
+    'F1bandwidth_sma3nz': 'f1_bw',
+    'F1amplitudeLogRelF0_sma3nz': 'f1_amplitude',
+    'F2frequency_sma3nz': 'f2_freq',
+    'F2bandwidth_sma3nz': 'f2_bw',
+    'F2amplitudeLogRelF0_sma3nz': 'f2_amplitude',
+    'F3frequency_sma3nz': 'f3_freq',
+    'F3bandwidth_sma3nz': 'f3_bw',
+    'F3amplitudeLogRelF0_sma3nz': 'f3_amplitude',
 }
 
 # MIDI CC Mapping for features
 MIDI_CC_MAPPING: dict[str, int] = {
-    'f0_semitones': 1,      # Pitch → CC1 (Pitch Bend is separate, but semitones here)
+    'f0_semitones': 1,      # Pitch → CC1 (Pitch Bend is separate, semitones here)
     'loudness': 7,            # Loudness → CC7 (Volume)
     'jitter': 16,             # Vocal roughness → CC16 (Distortion)
     'shimmer': 17,            # Amplitude instability → CC17 (Tremolo)
@@ -84,15 +87,14 @@ MIDI_CC_MAPPING: dict[str, int] = {
     'mfcc2': 13,            # MFCC timbre → CC13
     'mfcc3': 14,            # MFCC timbre → CC14
     'mfcc4': 15,            # MFCC timbre → CC15
-    'mfcc5': 16,            # MFCC timbre → CC16
-    'mfcc6': 17,            # MFCC timbre → CC17
-    'mfcc7': 18,            # MFCC timbre → CC18
-    'mfcc8': 19,            # MFCC timbre → CC19
-    'mfcc9': 20,            # MFCC timbre → CC20
-    'mfcc10': 21,           # MFCC timbre → CC21
-    'mfcc11': 22,           # MFCC timbre → CC22
-    'mfcc12': 23,           # MFCC timbre → CC23
-    'voicing_probability': 70, # Voicing → CC70 (Expression)
+    'log_rel_f0_h1_h2': 70,   # Voicing quality → CC70 (Expression)
+    'log_rel_f0_h1_a3': 71,   # Spectral tilt → CC71 (Timbre)
+    'f1_freq': 74,            # First formant → CC74 (Cutoff)
+    'f1_bw': 75,              # F1 bandwidth → CC75
+    'f2_freq': 76,            # Second formant → CC76
+    'f2_bw': 77,              # F2 bandwidth → CC77
+    'f3_freq': 78,            # Third formant → CC78
+    'f3_bw': 79,              # F3 bandwidth → CC79
 }
 
 

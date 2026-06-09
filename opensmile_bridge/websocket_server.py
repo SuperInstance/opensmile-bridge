@@ -62,6 +62,19 @@ class OpenSmileBridgeServer:
         """
         print(f"🔌 New client connection from {websocket.remote_address}")
         self.clients.add(websocket)
+
+        # Send welcome message so clients know we're ready
+        try:
+            from .config import FEATURE_MAPPING
+            await websocket.send(json.dumps({
+                "type": "welcome",
+                "version": "2.0.0",
+                "sample_rate": SAMPLE_RATE,
+                "features": list(FEATURE_MAPPING.values()),
+                "raw_count": len(FEATURE_MAPPING),
+            }))
+        except Exception:
+            pass  # Non-critical, client can still function
         
         try:
             async for message in websocket:
