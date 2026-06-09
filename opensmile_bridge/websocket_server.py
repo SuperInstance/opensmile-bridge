@@ -8,6 +8,7 @@ import asyncio
 import json
 import numpy as np
 import websockets
+from collections import deque
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 import time
@@ -52,8 +53,8 @@ class OpenSmileBridgeServer:
             except Exception as e:
                 print(f"⚠️  Failed to initialize I2I: {e}")
 
-        # Audio buffer
-        self.audio_buffer: List[float] = []
+        # Audio buffer for accumulating samples before extraction (200ms @ 16kHz = 3200 samples)
+        self.audio_buffer: deque = deque(maxlen=3200)
         self.last_frame_time = time.time()
 
     async def handle_connection(self, websocket: websockets.WebSocketServerProtocol):
@@ -93,42 +94,66 @@ class OpenSmileBridgeServer:
 
     async def _handle_audio_chunk(self, audio_data: bytes, origin_ws):
         """
-        Process incoming audio chunk
+        Process incoming audio chunk with buffer accumulation to avoid NaN frames.
+        
+        Short audio chunks (<200ms at 16kHz) produce NaN features from OpenSMILE.
+        We accumulate samples in a ring buffer and only extract when we have
+        enough (>= 3200 samples = 200ms) to stabilize feature extraction.
         """
         try:
             # Convert bytes to numpy array
             audio_chunk = np.frombuffer(audio_data, dtype=np.float32)
             
-            # Feed to extractor
-            self.extractor.feed_audio(audio_chunk)
+            # Accumulate into ring buffer (maxlen=3200 samples = 200ms @ 16kHz)
+            for sample in audio_chunk:
+                self.audio_buffer.append(sample)
             
-            # Get processed features
-            features = self.extractor.extract()
-            
-            if features:
-                global last_features
-                last_features = features.copy()
+            # Only feed to extractor when we have enough accumulated samples
+            if len(self.audio_buffer) >= 3200:
+                buffer_array = np.array(list(self.audio_buffer), dtype=np.float32)
                 
-                # Map to MIDI CC
-                midi_cc = self.midi_mapper.map_all_features(features)
-                features["midi_cc"] = midi_cc
+                # Feed to extractor
+                self.extractor.feed_audio(buffer_array)
                 
-                # Publish via I2I if enabled
-                if self.i2i_manager:
-                    await asyncio.get_event_loop().run_in_executor(
-                        None, self.i2i_manager.publish_features, features
-                    )
+                # Get processed features
+                features = self.extractor.extract()
                 
-                # Broadcast features to all connected clients
-                await self._broadcast(json.dumps({
-                    "type": "features",
-                    "data": features,
-                    "timestamp": time.time(),
-                }))
+                if features:
+                    # NaN guard: clip any NaN or Infinity values to 0.0
+                    for k, v in list(features.items()):
+                        if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                            features[k] = 0.0
+                    
+                    global last_features
+                    last_features = features.copy()
+                    
+                    # Map to MIDI CC
+                    midi_cc = self.midi_mapper.map_all_features(features)
+                    features["midi_cc"] = midi_cc
+                    
+                    # Publish via I2I if enabled
+                    if self.i2i_manager:
+                        await asyncio.get_event_loop().run_in_executor(
+                            None, self.i2i_manager.publish_features, features
+                        )
+                    
+                    # Broadcast features to all connected clients
+                    await self._broadcast(json.dumps({
+                        "type": "features",
+                        "data": features,
+                        "timestamp": time.time(),
+                    }))
+                    
+                    # Throttle logging
+                    if features.get("frame", 0) % 100 == 0:
+                        print(f"🎵 Extracted {len(features)} features @ frame {features.get('frame', 0)}")
                 
-                # Throttle logging
-                if features.get("frame", 0) % 100 == 0:
-                    print(f"🎵 Extracted {len(features)} features @ frame {features.get('frame', 0)}")
+                # Trim buffer: keep overlap samples for next extraction (50% hop = 1600 samples)
+                overlap = 1600
+                trimmed = list(self.audio_buffer)[overlap:]
+                self.audio_buffer.clear()
+                for s in trimmed:
+                    self.audio_buffer.append(s)
         
         except Exception as e:
             print(f"⚠️  Audio processing error: {e}")
