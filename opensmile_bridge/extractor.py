@@ -186,6 +186,88 @@ class OpenSmileExtractor:
             self._batch_buffer.extend(audio_chunk.tolist())
             if len(self._batch_buffer) >= FRAME_SIZE:
                 self._process_batch_frame()
+        else:
+            # Pure-numpy fallback: process directly
+            features = self._extract_numpy_fallback(audio_chunk)
+            if features:
+                self.last_features = features
+                try:
+                    self._feature_queue.put_nowait(features)
+                except queue.Full:
+                    pass
+                self.frame_count += 1
+
+    def _extract_numpy_fallback(self, audio_chunk: np.ndarray) -> Optional[Dict[str, Any]]:
+        """
+        Pure-numpy fallback feature extraction when OpenSMILE is unavailable.
+        Computes basic audio descriptors from the raw waveform.
+        """
+        if len(audio_chunk) < 256:
+            return None
+
+        frame = audio_chunk.astype(np.float64)
+        n = len(frame)
+
+        # RMS energy → loudness proxy
+        rms = np.sqrt(np.mean(frame ** 2))
+        loudness_db = 20.0 * np.log10(max(rms, 1e-10))  # dB
+
+        # Zero-crossing rate → spectral noisiness
+        zcr = np.mean(np.abs(np.diff(np.sign(frame)))) / 2.0
+
+        # Simple spectral centroid via FFT
+        fft_mag = np.abs(np.fft.rfft(frame * np.hanning(n)))
+        freqs = np.fft.rfftfreq(n, d=1.0 / SAMPLE_RATE)
+        if np.sum(fft_mag) > 1e-10:
+            spectral_centroid = np.sum(freqs * fft_mag) / np.sum(fft_mag)
+        else:
+            spectral_centroid = 0.0
+
+        # Spectral flatness (geometric/arithmetic mean)
+        eps = 1e-10
+        geom_mean = np.exp(np.mean(np.log(fft_mag + eps)))
+        arith_mean = np.mean(fft_mag + eps)
+        spectral_flatness = geom_mean / max(arith_mean, eps)
+
+        # Energy in low vs high bands (0-1kHz / 1kHz+)
+        low_mask = freqs <= 1000.0
+        energy_low = np.sum(fft_mag[low_mask] ** 2) if np.any(low_mask) else 0.0
+        energy_high = np.sum(fft_mag[~low_mask] ** 2) if np.any(~low_mask) else 0.0
+        alpha_ratio = energy_low / max(energy_low + energy_high, eps)
+
+        # F0 estimate via autocorrelation (simple pitch tracking)
+        corr = np.correlate(frame - np.mean(frame), frame - np.mean(frame), mode='full')
+        corr = corr[n - 1:]  # positive lags only
+        corr[0] = 0  # ignore zero-lag peak
+        # Search in plausible pitch range: 50-500 Hz
+        min_lag = max(1, int(SAMPLE_RATE / 500.0))
+        max_lag = min(n - 1, int(SAMPLE_RATE / 50.0))
+        if max_lag > min_lag:
+            peak_idx = np.argmax(corr[min_lag:max_lag]) + min_lag
+            f0 = SAMPLE_RATE / float(peak_idx) if corr[peak_idx] > 0.3 * np.max(np.abs(corr)) else 0.0
+        else:
+            f0 = 0.0
+
+        # Jitter approximation (variation in F0 over frame)
+        f0_ratio_prev = getattr(self, '_prev_f0', 0.0)
+        jitter = abs(f0 - f0_ratio_prev) / max(f0 + f0_ratio_prev, eps)
+        self._prev_f0 = f0
+
+        features = {
+            'frame': self.frame_count,
+            'loudness': float(rms),
+            'loudness_db': float(loudness_db),
+            'zcr': float(zcr),
+            'spectral_centroid': float(spectral_centroid),
+            'spectral_flatness': float(spectral_flatness),
+            'alpha_ratio': float(alpha_ratio),
+            'f0_raw': float(f0),
+            'f0_semitones': float(12.0 * np.log2(max(f0, 55.0) / 440.0) + 69.0) if f0 > 0 else 0.0,
+            'jitter': float(jitter),
+            'shimmer': float(np.std(frame) / max(np.mean(np.abs(frame)), eps)),
+        }
+        self.last_features = features
+        return features
 
     def _process_batch_frame(self) -> None:
         """Process a single batch frame"""
